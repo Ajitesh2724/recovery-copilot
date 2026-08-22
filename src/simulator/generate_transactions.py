@@ -2,6 +2,10 @@ import random
 import csv
 import os
 import sys
+import time
+
+NOW = time.time()
+SPREAD_SECONDS = 30 * 24 * 3600  # simulate transactions spread across 30 real days
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ""))
 from taxonomy.decline_codes import DECLINE_CODES
@@ -22,6 +26,8 @@ CODE_WEIGHTS = {
     "vpa_resolution_failed": 2,
     "transaction_limit_exceeded": 1,
 }
+CARD_ISSUERS = ["hdfc", "icici", "sbi", "axis", "kotak"]
+UPI_ISSUERS = ["npci_gpay", "npci_phonepe", "npci_paytm"]
 
 METHOD_FOR_CODE = {code: DECLINE_CODES[code]["method"].split(",")[0] for code in CODE_WEIGHTS}
 
@@ -34,12 +40,16 @@ def generate(n=2000, seed=42):
     rows = []
     for i in range(n):
         code = rng.choices(codes, weights=weights, k=1)[0]
+        method = METHOD_FOR_CODE[code]
+        issuer = rng.choice(CARD_ISSUERS) if method == "card" else rng.choice(UPI_ISSUERS)
         rows.append({
             "txn_id": f"txn_{i:05d}",
-            "customer_id": f"cust_{rng.randint(1, n // 3):05d}",  # some customers repeat, some don't
+            "customer_id": f"cust_{rng.randint(1, n // 3):05d}",
             "decline_code": code,
-            "method": METHOD_FOR_CODE[code],
+            "method": method,
+            "issuer": issuer,
             "amount": round(rng.uniform(199, 4999), 2),
+            "event_time": round(NOW - rng.uniform(0, SPREAD_SECONDS), 2),
         })
     return rows
 

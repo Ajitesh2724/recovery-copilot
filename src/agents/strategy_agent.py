@@ -34,8 +34,9 @@ def decide(txn):
 
     if category == "technical":
         issuer = txn.get("issuer", "unknown")
-        tripped = is_tripped(issuer)
-        record_technical_failure(issuer)
+        now = txn.get("event_time")  # lets replays use synthetic time, not wall-clock
+        tripped = is_tripped(issuer, now=now)
+        record_technical_failure(issuer, now=now)
         if tripped:
             return {"action": "hold_circuit_open", "issuer": issuer,
                     "reason": "issuer failure burst detected, pausing retries"}
