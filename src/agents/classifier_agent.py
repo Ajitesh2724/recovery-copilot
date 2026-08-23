@@ -1,18 +1,15 @@
 import os
 import sys
+import json
+import re
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ""))
 from taxonomy.decline_codes import lookup, is_retryable
+from agents import llm_client
 
 
 def classify(decline_code):
-    """
-    Returns a dict describing what we know about this failure.
-    Rule-based path first -- fast, free, explainable.
-    Falls back to the LLM path only for codes we've never seen.
-    """
     entry = lookup(decline_code)
-
     if entry is not None:
         return {
             "code": decline_code,
@@ -21,22 +18,16 @@ def classify(decline_code):
             "retry_hint": entry["retry_hint"],
             "source": "rule",
         }
-
     return _classify_unknown(decline_code)
 
 
 def _classify_unknown(decline_code):
-    """
-    Codes not in our taxonomy go here. This is where an LLM call belongs --
-    kept as a stub for now since it needs an API key we haven't wired up yet.
-    Defaults conservatively: unknown codes are treated as non-retryable
-    until a human or the LLM says otherwise, since guessing wrong on an
-    unknown code is worse than being cautious.
-    """
-    if os.getenv("USE_LLM_FALLBACK") == "1":
-        # TODO: call the LLM here once the API key is set up
-        raise NotImplementedError("LLM fallback not wired up yet")
+    if llm_client.available():
+        result = _ask_llm(decline_code)
+        if result:
+            return result
 
+    # no key, or the LLM call failed -- conservative, safe default
     return {
         "code": decline_code,
         "category": "unknown",
@@ -44,3 +35,35 @@ def _classify_unknown(decline_code):
         "retry_hint": "manual_review_only",
         "source": "fallback_no_llm",
     }
+
+
+def _ask_llm(decline_code):
+    prompt = (
+        f"Classify this payment gateway decline code: '{decline_code}'. "
+        'Reply with ONLY this JSON, no markdown: '
+        '{"category": "soft" or "hard" or "technical", "retryable": true or false, "reasoning": "under 6 words"}. '
+        "soft = temporary, worth retrying same method. hard = permanent, don't retry same method. "
+        "technical = bank/gateway issue, retry after a delay. If unsure, use hard and retryable=false."
+    )
+    raw = llm_client.call(prompt, max_tokens=1200)
+    if not raw:
+        return None
+
+    match = re.search(r"\{.*\}", raw, re.DOTALL)
+    if not match:
+        print("LLM classify: no JSON found in response:", raw)
+        return None
+
+    try:
+        data = json.loads(match.group(0))
+        return {
+            "code": decline_code,
+            "category": data["category"],
+            "retryable": bool(data["retryable"]),
+            "retry_hint": "immediate" if data["retryable"] else "manual_review_only",
+            "source": "llm",
+            "reasoning": data.get("reasoning", ""),
+        }
+    except (json.JSONDecodeError, KeyError) as e:
+        print("LLM classify: failed to parse:", e, "raw:", raw)
+        return None

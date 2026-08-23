@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Recovery Copilot</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0F1419;
+    --bg-panel: #161C24;
+    --bg-panel-hover: #1B222C;
+    --border: #232B36;
+    --text: #E8ECF1;
+    --text-dim: #8B96A5;
+    --accent: #2DD4A7;
+    --accent-dim: #1B9F7C;
+    --amber: #F0A94E;
+    --red: #E85D5D;
+    --mono: 'IBM Plex Mono', monospace;
+    --sans: 'Inter', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    padding: 48px 24px;
+  }
+
+  .wrap { max-width: 720px; margin: 0 auto; }
+
+  header { margin-bottom: 40px; }
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.12em;
+    color: var(--accent);
+    text-transform: uppercase;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .eyebrow::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 8px var(--accent);
+  }
+
+  h1 {
+    font-size: 30px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+
+  .sub {
+    color: var(--text-dim);
+    font-size: 15px;
+    margin-top: 8px;
+    max-width: 520px;
+    line-height: 1.5;
+  }
+
+  .panel {
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 28px;
+    margin-bottom: 20px;
+  }
+
+  .panel-title {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 18px;
+  }
+
+  label {
+    display: block;
+    font-size: 13px;
+    color: var(--text-dim);
+    margin-bottom: 6px;
+    margin-top: 16px;
+  }
+  label:first-of-type { margin-top: 0; }
+
+  select, input {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 11px 12px;
+    border-radius: 8px;
+    font-family: var(--mono);
+    font-size: 14px;
+    transition: border-color 0.15s ease;
+  }
+
+  select:focus, input:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+
+  .checkbox-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 18px;
+  }
+  .checkbox-row input { width: 16px; height: 16px; accent-color: var(--accent); }
+  .checkbox-row label { margin: 0; font-size: 14px; color: var(--text); }
+
+  button {
+    margin-top: 24px;
+    width: 100%;
+    background: var(--accent);
+    color: #06110D;
+    border: none;
+    padding: 13px;
+    border-radius: 8px;
+    font-family: var(--sans);
+    font-weight: 600;
+    font-size: 14px;
+    cursor: pointer;
+    transition: background 0.15s ease, transform 0.1s ease;
+  }
+  button:hover { background: #3EE6B8; }
+  button:active { transform: scale(0.99); }
+  button:disabled { background: var(--border); color: var(--text-dim); cursor: not-allowed; }
+
+  .trace { display: none; }
+  .trace.active { display: block; }
+
+  .step {
+    display: flex;
+    gap: 14px;
+    padding: 16px 0;
+    border-bottom: 1px solid var(--border);
+    opacity: 0;
+    transform: translateY(6px);
+    animation: reveal 0.35s ease forwards;
+  }
+  .step:last-child { border-bottom: none; }
+
+  @keyframes reveal {
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .step-marker {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-dim);
+    width: 20px;
+    padding-top: 2px;
+    flex-shrink: 0;
+  }
+
+  .step-body { flex: 1; }
+
+  .step-label {
+    font-size: 13px;
+    color: var(--text-dim);
+    margin-bottom: 4px;
+  }
+
+  .step-value {
+    font-family: var(--mono);
+    font-size: 14px;
+    font-weight: 500;
+  }
+
+  .step-reason {
+    font-size: 13px;
+    color: var(--text-dim);
+    margin-top: 4px;
+    line-height: 1.4;
+  }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 500;
+  }
+  .badge.retry { background: rgba(45,212,167,0.12); color: var(--accent); }
+  .badge.cascade { background: rgba(45,212,167,0.12); color: var(--accent); }
+  .badge.hold { background: rgba(240,169,78,0.12); color: var(--amber); }
+  .badge.stop { background: rgba(232,93,93,0.12); color: var(--red); }
+
+  .footnote {
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-top: 24px;
+    line-height: 1.5;
+  }
+
+  .footnote code {
+    font-family: var(--mono);
+    background: var(--bg);
+    padding: 1px 5px;
+    border-radius: 4px;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="eyebrow">Recovery Copilot — Live Decision Trace</div>
+    <h1>Send a failed payment through the pipeline</h1>
+    <p class="sub">Pick a decline code and watch the Classifier, Strategy, and Dunning agents reason through it in real time — same code that ran the 2,000-transaction backtest.</p>
+  </header>
+
+  <div class="panel">
+    <div class="panel-title">Transaction Input</div>
+
+    <label for="declineCode">Decline code</label>
+    <select id="declineCode">
+      <option value="insufficient_funds">insufficient_funds</option>
+      <option value="card_expired">card_expired</option>
+      <option value="payment_collect_request_expired">payment_collect_request_expired</option>
+      <option value="authentication_failed">authentication_failed</option>
+      <option value="bank_technical_error">bank_technical_error</option>
+      <option value="payment_risk_check_failed">payment_risk_check_failed</option>
+      <option value="invalid_vpa">invalid_vpa</option>
+      <option value="__custom__">Other (type a custom code)…</option>
+    </select>
+
+    <input type="text" id="customCode" placeholder="e.g. card_blocked_by_issuer_policy" style="display:none; margin-top: 10px;" />
+
+    <label for="issuer">Issuer (for circuit breaker tracking)</label>
+    <select id="issuer">
+      <option value="hdfc">hdfc</option>
+      <option value="icici">icici</option>
+      <option value="sbi">sbi</option>
+      <option value="axis">axis</option>
+      <option value="kotak">kotak</option>
+    </select>
+    
+    <label for="amount">Transaction amount (₹)</label>
+    <input type="number" id="amount" value="1500" min="1" step="1" />
+
+    <div class="checkbox-row">
+      <input type="checkbox" id="hasSecondary" checked />
+      <label for="hasSecondary">Customer has a linked secondary payment method</label>
+    </div>
+
+    <button id="runBtn" onclick="runTransaction(false)">Run through pipeline</button>
+    <button id="repeatBtn" onclick="runTransaction(true)" style="background: transparent; border: 1px solid var(--border); color: var(--text-dim); margin-top: 10px;">
+      Repeat last transaction (test idempotency lock)
+    </button>
+  </div>
+
+  <div class="panel trace" id="tracePanel">
+    <div class="panel-title">Decision Trace</div>
+    <div id="traceSteps"></div>
+  </div>
+
+  <div class="panel" id="batchPanel">
+    <div class="panel-title">Batch Result — 2,000 Simulated Transactions</div>
+    <div id="batchContent" style="color: var(--text-dim); font-size: 14px;">Loading…</div>
+  </div>
+
+  <p class="footnote">
+    Calls <code>POST /process</code> on the local FastAPI instance — this is the same
+    Classifier → Strategy → Dunning pipeline used in the evaluation, not a mocked response.
+  </p>
+
+</div>
+
+<script>
+document.getElementById("declineCode").addEventListener("change", (e) => {
+  document.getElementById("customCode").style.display = e.target.value === "__custom__" ? "block" : "none";
+});
+</script>
+
+<script>
+const API_BASE = "http://127.0.0.1:8000";
+let txnCounter = 1;
+let lastTxnId = null;
+
+function actionBadgeClass(action) {
+  if (action.startsWith("retry") || action === "cascade_secondary" || action === "send_upi_intent") return "retry";
+  if (action === "hold_circuit_open") return "hold";
+  return "stop";
+}
+
+async function runTransaction(repeat) {
+  const btn = document.getElementById("runBtn");
+  const tracePanel = document.getElementById("tracePanel");
+  const steps = document.getElementById("traceSteps");
+
+  btn.disabled = true;
+  tracePanel.classList.remove("active");
+  steps.innerHTML = "";
+
+  const txnId = repeat && lastTxnId ? lastTxnId : "demo_" + String(txnCounter++).padStart(3, "0");
+  lastTxnId = txnId;
+
+  const codeSelect = document.getElementById("declineCode").value;
+  const declineCode = codeSelect === "__custom__"
+    ? (document.getElementById("customCode").value.trim() || "unrecognized_code")
+    : codeSelect;
+
+  const payload = {
+    txn_id: txnId,
+    decline_code: declineCode,
+    issuer: document.getElementById("issuer").value,
+    has_secondary_method: document.getElementById("hasSecondary").checked,
+    amount: parseFloat(document.getElementById("amount").value) || 1500,
+  };
+
+  try {
+    const res = await fetch(`${API_BASE}/process_loop`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    renderTrace(payload, data);
+  } catch (err) {
+    steps.innerHTML = `<div class="step"><div class="step-body">
+      <div class="step-label" style="color: var(--red)">Couldn't reach the API</div>
+      <div class="step-reason">Make sure uvicorn is running on port 8000.</div>
+    </div></div>`;
+    tracePanel.classList.add("active");
+  }
+
+  btn.disabled = false;
+}
+
+function renderTrace(payload, data) {
+  const steps = document.getElementById("traceSteps");
+  const tracePanel = document.getElementById("tracePanel");
+
+  steps.innerHTML = "";
+  const classifierStep = document.createElement("div");
+  classifierStep.className = "step";
+  classifierStep.innerHTML = `
+    <div class="step-marker">00</div>
+    <div class="step-body">
+      <div class="step-label">Classifier Agent</div>
+      <div class="step-value">${
+  data.classifier_source === "llm" ? "LLM classification": data.classifier_source === "fallback_no_llm" ? "LLM unavailable — safe fallback used"
+  : "Rule-based match"
+}</div>
+      <div class="step-reason">decline code: ${payload.decline_code}</div>
+    </div>`;
+  steps.appendChild(classifierStep);
+
+  data.attempts.forEach((att, i) => {
+    const badgeClass = actionBadgeClass(att.action);
+    const verifyBadge = att.recovered
+      ? `<span class="badge retry">✓ recovered</span>`
+      : `<span class="badge stop">✗ not recovered</span>`;
+
+    const el = document.createElement("div");
+    el.className = "step";
+    el.style.animationDelay = `${i * 0.15}s`;
+    el.innerHTML = `
+      <div class="step-marker">${String(i + 1).padStart(2, "0")}</div>
+      <div class="step-body">
+        <div class="step-label">Attempt ${att.attempt} — ${att.action.startsWith("retry") ? "Same-method retry" : att.action.replace(/_/g, " ")}</div>
+        <div class="step-value"><span class="badge ${badgeClass}">${att.action}</span> ${verifyBadge}</div>
+        <div class="step-reason">${att.reason}</div>
+      </div>`;
+    steps.appendChild(el);
+  });
+
+  const summary = document.createElement("div");
+  summary.className = "step";
+  summary.style.animationDelay = `${data.attempts.length * 0.15}s`;
+  summary.innerHTML = `
+    <div class="step-marker">✓</div>
+    <div class="step-body">
+      <div class="step-label">Outcome</div>
+      <div class="step-value">${data.recovered ? `Recovered ₹${data.recovered_amount.toFixed(2)} via ${data.final_action}` : "Not recovered this cycle"}</div>
+      <div class="step-reason">${data.recovered ? (data.final_action === "compliant_dunning" || data.final_action === "prompt_customer" ? "Customer acted on the notice and completed payment independently — not an automated recovery." : "Payment succeeded on this automated attempt.") : "All bounded attempts exhausted for this cycle."}</div>
+    </div>`;
+  steps.appendChild(summary);
+
+  if (data.notice.sendable) {
+    const noticeStep = document.createElement("div");
+    noticeStep.className = "step";
+    noticeStep.style.animationDelay = `${(data.attempts.length + 1) * 0.15}s`;
+    noticeStep.innerHTML = `
+      <div class="step-marker">✉</div>
+      <div class="step-body">
+        <div class="step-label">Customer Notice sent via ${data.notice.channel}</div>
+        <div class="step-reason">${data.notice.message}</div>
+      </div>`;
+    steps.appendChild(noticeStep);
+  }
+
+  tracePanel.classList.add("active");
+}
+async function loadBatchSummary() {
+  const el = document.getElementById("batchContent");
+  try {
+    const res = await fetch(`${API_BASE}/batch`);
+    const d = await res.json();
+    el.innerHTML = `
+      <div class="step"><div class="step-body">
+        <div class="step-label">Total revenue at risk</div>
+        <div class="step-value">₹${d.total_amount.toLocaleString("en-IN")}</div>
+      </div></div>
+      <div class="step"><div class="step-body">
+        <div class="step-label">Naive retry recovered</div>
+        <div class="step-value" style="color: var(--text-dim)">₹${d.naive_recovered.toLocaleString("en-IN")}</div>
+      </div></div>
+      <div class="step"><div class="step-body">
+        <div class="step-label">Recovery Copilot recovered</div>
+        <div class="step-value" style="color: var(--accent)">₹${d.copilot_recovered.toLocaleString("en-IN")}</div>
+      </div></div>`;
+  } catch (e) {
+    el.textContent = "Couldn't load batch summary — check the API is running.";
+  }
+}
+loadBatchSummary();
+</script>
+</body>
+</html>

@@ -94,3 +94,42 @@ probabilities, independent of the original decline code's retry odds.
 
 Good answer if asked "walk me through how you validated that your evaluation isn't
 accidentally biased against your own system."
+
+
+## LLM calls belong in the live path only, never inside a batch simulation
+
+Wiring the LLM into the dunning agent worked correctly for a single live transaction,
+but calling it unconditionally inside the recovery loop meant a 2000-transaction batch
+run made 2000 real network calls sequentially -- slow, and likely to hit free-tier rate
+limits, appearing to hang rather than just being slow.
+
+Lesson: a synthetic evaluation script needs to stay fast and free to be useful, since
+it gets rerun constantly during development (this project's own comparison scripts
+were rerun 5+ times while debugging). Any live-API call has to be an explicit,
+opt-in parameter (use_llm=False by default), never a default behavior inside a path
+that might process thousands of records. The fast deterministic path and the "real AI"
+path are the same code, but must be switchable independently.
+
+Good answer if asked "how did you keep your evaluation loop fast despite adding a
+real LLM into the system?"
+
+
+## An "unknown code" fallback needs its own explicit branch, not a silent default
+
+The classifier correctly returns a conservative fallback (manual_review_only) for
+decline codes outside the taxonomy when the LLM path is unavailable. But the Strategy
+Agent's decide() function never explicitly checked for an "unknown" category -- it fell
+through to the default soft-decline branch and picked retry_now anyway, silently
+undoing the safety default the fallback was designed to enforce.
+
+Lesson: a safe default has to be checked explicitly at every layer that consumes it,
+not just produced once and assumed to propagate. Fixed by adding an explicit
+category == "unknown" branch in decide(). Also added a /llm_status diagnostic
+endpoint, since a failed LLM call and a genuine rule match were being displayed
+identically in the UI -- silent fallbacks need to be visibly distinguishable from
+successful calls, or you can't tell whether the "AI" part of the system is actually
+running.
+
+Good answer if asked "how do you know your safe defaults actually hold end to end?"
+
+- The simulator models dunning-driven recovery as resolving within the same evaluation cycle for simplicity. In production, this recovery would typically occur over hours to days as the customer acts on the notice, not instantaneously.

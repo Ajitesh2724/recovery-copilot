@@ -10,10 +10,10 @@ def test_known_code_uses_rule():
     assert result["category"] == "hard"
 
 
-def test_unknown_code_defaults_to_manual_review():
+def test_unknown_code_has_valid_shape():
     result = classify("something_totally_new")
-    assert result["source"] == "fallback_no_llm"
-    assert result["retryable"] is False
+    assert result["category"] in ("soft", "hard", "technical", "unknown")
+    assert isinstance(result["retryable"], bool)
 
 
 def test_fraud_code_not_retryable():
