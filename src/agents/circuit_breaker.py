@@ -35,3 +35,16 @@ def is_tripped(issuer, now=None):
 
 def reset(issuer):
     _failure_log[issuer] = []
+
+def status(issuer, now=None):
+    now = now or time.time()
+    _prune_old(issuer, now)
+    recent = _failure_log[issuer]
+    tripped = is_tripped(issuer, now)
+    remaining = 0
+    if tripped and recent:
+        remaining = max(0, COOLDOWN_SECONDS - (now - max(recent)))
+    return {"issuer": issuer, "tripped": tripped, "recent_failures": len(recent), "cooldown_remaining": round(remaining)}
+
+def reset_all():
+    _failure_log.clear()

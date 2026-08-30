@@ -51,23 +51,22 @@ def _personalize(base_template):
         "no mention of 'options' or your reasoning -- output ONLY the final rewritten "
         f"sentence and nothing else.\n\nMessage: '{base_template}'"
     )
-    result = llm_client.call(prompt, max_tokens=500)
+    result = llm_client.call(prompt, max_tokens=800)
     if not result:
         return None
 
     result = result.strip().strip('"')
 
-    # reject anything that looks like leaked meta-commentary or broken formatting,
-    # rather than risk a malformed message reaching a customer
     red_flags = ["constraint", "under 30 words", "option", "**", "reasoning",
                  "here is", "here's the", "rewritten message"]
     looks_broken = (
         len(result) < 15
         or result.startswith(":")
+        or not result.rstrip().endswith((".", "!", "?"))  # catches mid-word truncation
         or any(flag in result.lower() for flag in red_flags)
     )
     if looks_broken:
-        print("LLM dunning rewrite looked malformed, using template instead:", result)
+        print("LLM dunning rewrite looked malformed or truncated, using template instead:", result)
         return None
 
     return result

@@ -32,8 +32,22 @@
     padding: 48px 24px;
   }
 
-  .wrap { max-width: 720px; margin: 0 auto; }
+  .wrap { max-width: 1160px; margin: 0 auto; }
+  .layout {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    align-items: start;
+  }
+  @media (max-width: 900px) {
+    .layout { grid-template-columns: 1fr; }
+  }
 
+  .navlink { padding: 10px 12px; border-radius: 8px; font-size: 13px; color: var(--text-dim); cursor: pointer; margin-bottom: 4px; transition: background 0.15s ease, color 0.15s ease; }
+  .navlink:hover { background: var(--bg-panel-hover); color: var(--text); }
+  .navlink.active { background: var(--bg-panel); color: var(--accent); font-weight: 600; }
+  .tabpanel { display: none; }
+  .tabpanel.active { display: block; }
   header { margin-bottom: 40px; }
 
   .eyebrow {
@@ -78,6 +92,9 @@
     padding: 28px;
     margin-bottom: 20px;
   }
+  .metric-tile { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 14px; }
+  .metric-label { font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
+  .metric-value { font-family: var(--mono); font-size: 20px; font-weight: 600; }
 
   .panel-title {
     font-family: var(--mono);
@@ -220,69 +237,168 @@
 </style>
 </head>
 <body>
-<div class="wrap">
+<div class="wrap" style="max-width: 1400px; display:flex; gap:24px; align-items:flex-start;">
 
-  <header>
-    <div class="eyebrow">Recovery Copilot — Live Decision Trace</div>
-    <h1>Send a failed payment through the pipeline</h1>
-    <p class="sub">Pick a decline code and watch the Classifier, Strategy, and Dunning agents reason through it in real time — same code that ran the 2,000-transaction backtest.</p>
-  </header>
+  <nav style="width:180px; flex-shrink:0; position:sticky; top:24px;">
+    <div class="eyebrow" style="margin-bottom:16px;">Recovery Copilot</div>
+    <div class="navlink active" data-tab="live" onclick="switchTab('live')">Live Decision</div>
+    <div class="navlink" data-tab="health" onclick="switchTab('health')">System Health</div>
+    <div class="navlink" data-tab="results" onclick="switchTab('results')">Results</div>
+  </nav>
 
-  <div class="panel">
-    <div class="panel-title">Transaction Input</div>
+  <div style="flex:1; min-width:0;">
 
-    <label for="declineCode">Decline code</label>
-    <select id="declineCode">
-      <option value="insufficient_funds">insufficient_funds</option>
-      <option value="card_expired">card_expired</option>
-      <option value="payment_collect_request_expired">payment_collect_request_expired</option>
-      <option value="authentication_failed">authentication_failed</option>
-      <option value="bank_technical_error">bank_technical_error</option>
-      <option value="payment_risk_check_failed">payment_risk_check_failed</option>
-      <option value="invalid_vpa">invalid_vpa</option>
-      <option value="__custom__">Other (type a custom code)…</option>
-    </select>
+    <header>
+      <div class="eyebrow">Recovery Copilot — Live Decision Trace</div>
+      <h1>Send a failed payment through the pipeline</h1>
+      <p class="sub">Pick a decline code and watch the Classifier, Strategy, and Dunning agents reason through it in real time — same code that ran the 2,000-transaction backtest.</p>
+    </header>
 
-    <input type="text" id="customCode" placeholder="e.g. card_blocked_by_issuer_policy" style="display:none; margin-top: 10px;" />
+    <!-- ===== TAB: LIVE DECISION ===== -->
+    <div class="tabpanel active" data-tab="live">
+      <div class="panel" style="overflow-x:auto; padding-bottom:16px;">
+        <div class="panel-title">Architecture</div>
+        <svg viewBox="0 0 900 105" style="width:100%; min-width:700px;">
+          <style>
+            .node { fill: #161C24; stroke: #232B36; stroke-width: 1; transition: stroke 0.3s ease, fill 0.3s ease; }
+            .node.active { stroke: #2DD4A7; stroke-width: 2; fill: rgba(45,212,167,0.12); }
+            .label { fill: #E8ECF1; font: 12px 'IBM Plex Mono', monospace; }
+            .sub { fill: #8B96A5; font: 10px 'Inter', sans-serif; }
+            .arrow { stroke: #2DD4A7; stroke-width: 1.5; marker-end: url(#arrowhead); fill: none; }
+          </style>
+          <defs><marker id="arrowhead" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#2DD4A7"/></marker></defs>
+          <rect id="nodeInput" class="node" x="10" y="50" width="120" height="40" rx="6"/><text class="label" x="20" y="74">Failed Payment</text>
+          <path class="arrow" d="M130,70 L175,70"/>
+          <rect id="nodeClassifier" class="node" x="180" y="50" width="130" height="40" rx="6"/><text class="label" x="192" y="70">Classifier</text><text class="sub" x="192" y="83">rules → LLM fallback</text>
+          <path class="arrow" d="M310,70 L355,70"/>
+          <rect id="nodeStrategy" class="node" x="360" y="50" width="130" height="40" rx="6"/><text class="label" x="372" y="70">Strategy</text><text class="sub" x="372" y="83">cascade / breaker</text>
+          <path class="arrow" d="M490,70 L535,70"/>
+          <rect id="nodeDunning" class="node" x="540" y="50" width="130" height="40" rx="6"/><text class="label" x="552" y="70">Dunning</text><text class="sub" x="552" y="83">RBI-compliant</text>
+          <path class="arrow" d="M670,70 L715,70"/>
+          <rect id="nodeVerify" class="node" x="720" y="50" width="170" height="40" rx="6"/><text class="label" x="732" y="70">Verify + Log</text><text class="sub" x="732" y="83">bounded, max 3</text>
+          <rect class="node" x="180" y="105" width="290" height="28" rx="6" stroke-dasharray="3,3"/><text class="sub" x="192" y="123">🔒 Idempotency Lock guards every attempt</text>
+        </svg>
+      </div>
+      <div class="layout">
+        <div>
+          <div class="panel">
+            <div class="panel-title">Transaction Input</div>
 
-    <label for="issuer">Issuer (for circuit breaker tracking)</label>
-    <select id="issuer">
-      <option value="hdfc">hdfc</option>
-      <option value="icici">icici</option>
-      <option value="sbi">sbi</option>
-      <option value="axis">axis</option>
-      <option value="kotak">kotak</option>
-    </select>
-    
-    <label for="amount">Transaction amount (₹)</label>
-    <input type="number" id="amount" value="1500" min="1" step="1" />
+            <label for="declineCode">Decline code</label>
+            <select id="declineCode">
+              <option value="insufficient_funds">insufficient_funds</option>
+              <option value="card_expired">card_expired</option>
+              <option value="payment_collect_request_expired">payment_collect_request_expired</option>
+              <option value="authentication_failed">authentication_failed</option>
+              <option value="bank_technical_error">bank_technical_error</option>
+              <option value="payment_risk_check_failed">payment_risk_check_failed</option>
+              <option value="invalid_vpa">invalid_vpa</option>
+              <option value="__custom__">Other (type a custom code)…</option>
+            </select>
 
-    <div class="checkbox-row">
-      <input type="checkbox" id="hasSecondary" checked />
-      <label for="hasSecondary">Customer has a linked secondary payment method</label>
+            <input type="text" id="customCode" placeholder="e.g. card_blocked_by_issuer_policy" style="display:none; margin-top: 10px;" />
+
+            <label for="issuer">Issuer (for circuit breaker tracking)</label>
+            <select id="issuer">
+              <option value="hdfc">hdfc</option>
+              <option value="icici">icici</option>
+              <option value="sbi">sbi</option>
+              <option value="axis">axis</option>
+              <option value="kotak">kotak</option>
+            </select>
+
+            <label for="amount">Transaction amount (₹)</label>
+            <input type="number" id="amount" value="1500" min="1" step="1" />
+
+            <div class="checkbox-row">
+              <input type="checkbox" id="hasSecondary" checked />
+              <label for="hasSecondary">Customer has a linked secondary payment method</label>
+            </div>
+
+            <button id="runBtn" onclick="runTransaction(false)">Run through pipeline</button>
+            <button id="repeatBtn" onclick="runTransaction(true)" style="background: transparent; border: 1px solid var(--border); color: var(--text-dim); margin-top: 10px;">
+              Repeat last transaction (test idempotency lock)
+            </button>
+          </div>
+        </div>
+
+        <div>
+        <div style="display:flex; gap:8px; margin-bottom:12px; font-size:11px; color:var(--text-dim);">
+          <span>Issuer status:</span>
+          <span id="liveIssuerStatus" style="color:var(--accent);">checking…</span>
+        </div>
+          <div class="panel trace" id="tracePanel">
+            <div class="panel-title">Decision Trace</div>
+            <div id="traceSteps"></div>
+          </div>
+        </div>
+      </div>
     </div>
 
-    <button id="runBtn" onclick="runTransaction(false)">Run through pipeline</button>
-    <button id="repeatBtn" onclick="runTransaction(true)" style="background: transparent; border: 1px solid var(--border); color: var(--text-dim); margin-top: 10px;">
-      Repeat last transaction (test idempotency lock)
-    </button>
+    <!-- ===== TAB: SYSTEM HEALTH ===== -->
+    <div class="tabpanel" data-tab="health">
+
+
+      <div class="panel">
+        <div class="panel-title">Bank Infrastructure Status</div>
+        <div id="breakerGrid" style="display:grid; grid-template-columns:repeat(auto-fill,minmax(90px,1fr)); gap:10px; margin-bottom:14px;">
+          <div style="color:var(--text-dim); font-size:12px;">Loading…</div>
+        </div>
+        <select id="tripIssuer">
+          <option value="hdfc">hdfc</option><option value="icici">icici</option>
+          <option value="sbi">sbi</option><option value="axis">axis</option><option value="kotak">kotak</option>
+        </select>
+        <button onclick="tripBreaker()" style="margin-top:10px; background: transparent; border:1px solid var(--red); color: var(--red);">Simulate outage (trip breaker)</button>
+        <div id="breakerProof"></div>
+      </div>
+
+    </div>
+
+    <!-- ===== TAB: RESULTS ===== -->
+    <div class="tabpanel" data-tab="results">
+
+      <div class="panel" id="metricsPanel">
+        <div class="panel-title">Executive Summary</div>
+        <div id="metricsGrid" style="display:grid; grid-template-columns:repeat(4,1fr); gap:16px;">
+          <div style="color:var(--text-dim); font-size:13px;">Loading…</div>
+        </div>
+      </div>
+
+      <div class="layout">
+        <div>
+          <div class="panel">
+            <div class="panel-title">Sample a Few Transactions</div>
+            <label for="sampleN">How many (max 25)</label>
+            <input type="number" id="sampleN" value="8" min="1" max="25" />
+            <button onclick="runSample()" style="margin-top: 16px;">Run sample</button>
+            <div id="sampleResults" style="margin-top: 16px; color: var(--text-dim); font-size: 13px;">Pick a count and run a sample to see a batch of transactions move through the pipeline.</div>
+          </div>
+        </div>
+
+        <div>
+          <div class="panel" id="batchPanel">
+            <div class="panel-title">Batch Result — 2,000 Simulated Transactions</div>
+            <div id="batchContent" style="color: var(--text-dim); font-size: 14px;">Loading…</div>
+            <canvas id="batchChart" width="600" height="140" style="margin-top: 16px; width: 100%; height: 140px;"></canvas>
+            <a id="downloadTrace" href="#" style="display:inline-block; margin-top:14px; font-size:12px; color: var(--accent); text-decoration:none; font-family: var(--mono);" onclick="downloadTrace(event)">↓ export audit trail (JSON)</a>
+          </div>
+          <div class="panel">
+            <div class="panel-title">Cumulative Recovery — Naive vs. Copilot</div>
+            <canvas id="curveChart" width="900" height="180" style="width:100%; height:180px;"></canvas>
+          </div>
+
+        </div>
+      </div>
+
+
+    </div>
+
+    <p class="footnote">
+      Calls <code>POST /process</code> on the local FastAPI instance — this is the same
+      Classifier → Strategy → Dunning pipeline used in the evaluation, not a mocked response.
+    </p>
+
   </div>
-
-  <div class="panel trace" id="tracePanel">
-    <div class="panel-title">Decision Trace</div>
-    <div id="traceSteps"></div>
-  </div>
-
-  <div class="panel" id="batchPanel">
-    <div class="panel-title">Batch Result — 2,000 Simulated Transactions</div>
-    <div id="batchContent" style="color: var(--text-dim); font-size: 14px;">Loading…</div>
-  </div>
-
-  <p class="footnote">
-    Calls <code>POST /process</code> on the local FastAPI instance — this is the same
-    Classifier → Strategy → Dunning pipeline used in the evaluation, not a mocked response.
-  </p>
-
 </div>
 
 <script>
@@ -301,14 +417,161 @@ function actionBadgeClass(action) {
   if (action === "hold_circuit_open") return "hold";
   return "stop";
 }
+async function animatePipeline() {
+  const order = ["nodeInput", "nodeClassifier", "nodeStrategy", "nodeDunning", "nodeVerify"];
+  order.forEach(id => document.getElementById(id).classList.remove("active"));
+  for (const id of order) {
+    document.getElementById(id).classList.add("active");
+    await new Promise(r => setTimeout(r, 200));
+  }
+}
+function switchTab(tab) {
+  document.querySelectorAll(".navlink").forEach(el => el.classList.toggle("active", el.dataset.tab === tab));
+  document.querySelectorAll(".tabpanel").forEach(el => el.classList.toggle("active", el.dataset.tab === tab));
+}
+
+async function runSample() {
+  const n = document.getElementById("sampleN").value || 8;
+  const container = document.getElementById("sampleResults");
+  container.innerHTML = `<div style="color: var(--text-dim); font-size: 13px;">Running…</div>`;
+
+  const cols = "1.3fr 1.6fr 1.3fr 1fr";
+
+  try {
+    const res = await fetch(`${API_BASE}/sample?n=${n}`);
+    const data = await res.json();
+
+    const rows = data.results.map((r, idx) => `
+      <div style="border-bottom:1px solid var(--border);">
+        <div onclick="toggleSampleRow(${idx})" style="cursor:pointer; display:grid; grid-template-columns:1.3fr 1.6fr 1.3fr 1fr; gap:8px; align-items:center; padding:8px 0; font-size:12px;">
+          <span style="font-family: var(--mono); color: var(--text-dim);">${r.txn_id}</span>
+          <span style="font-family: var(--mono);">${r.decline_code}</span>
+          <span class="badge ${actionBadgeClass(r.final_action)}">${r.final_action}</span>
+          <span style="color: ${r.recovered ? 'var(--accent)' : 'var(--red)'}; text-align:right;">${r.recovered ? '₹' + Math.round(r.amount) : '✗'}</span>
+        </div>
+        <div id="sampleRow${idx}" style="display:none; padding:0 0 10px 0; font-size:11px; color:var(--text-dim);">
+          ${r.attempts.map(a => `<div>attempt ${a.attempt}: <span style="color:var(--text)">${a.action}</span> — ${a.reason} ${a.recovered ? '✓' : '✗'}</div>`).join("")}
+        </div>
+      </div>`).join("");
+
+    const summary = `
+      <div style="display:flex; justify-content:space-between; padding:10px 0; margin-bottom:6px; border-bottom:1px solid var(--border); font-size:13px; color: var(--text-dim);">
+        <span>Total: <span style="color: var(--text)">₹${Math.round(data.total_amount).toLocaleString("en-IN")}</span></span>
+        <span>Recovered: <span style="color: var(--accent)">₹${Math.round(data.recovered_amount).toLocaleString("en-IN")}</span></span>
+        <span>(${((data.recovered_amount / data.total_amount) * 100 || 0).toFixed(0)}%)</span>
+      </div>`;
+
+    const header = `
+      <div style="display:grid; grid-template-columns:${cols}; gap:8px; padding:6px 0; font-size:10px; color: var(--text-dim); text-transform:uppercase; letter-spacing:0.05em; border-bottom:1px solid var(--border);">
+        <span>Txn ID</span><span>Decline Code</span><span>Action Taken</span><span style="text-align:right;">Recovered</span>
+      </div>`;
+
+    container.innerHTML = summary + header + rows;
+  } catch (e) {
+    container.innerHTML = `<div style="color: var(--red); font-size: 13px;">Couldn't reach the API.</div>`;
+  }
+}
+function toggleSampleRow(idx) {
+  const el = document.getElementById(`sampleRow${idx}`);
+  el.style.display = el.style.display === "none" ? "block" : "none";
+}
+
+async function loadBreakers() {
+  const grid = document.getElementById("breakerGrid");
+  try {
+    const res = await fetch(`${API_BASE}/breakers`);
+    const d = await res.json();
+    grid.innerHTML = d.issuers.map(b => `
+      <div style="background:var(--bg); border:1px solid ${b.tripped ? 'var(--red)' : 'var(--border)'}; border-radius:8px; padding:10px; text-align:center; transition: border-color 0.3s ease;">
+        <div style="font-family:var(--mono); font-size:12px; text-transform:uppercase;">${b.issuer}</div>
+        <div style="font-size:11px; margin-top:6px; color:${b.tripped ? 'var(--red)' : 'var(--accent)'};">${b.tripped ? '🔴 Broken' : '🟢 Healthy'}</div>
+        ${b.tripped ? `<div style="font-size:10px; color:var(--text-dim); margin-top:4px;">cooldown ${b.cooldown_remaining}s</div>` : ''}
+      </div>`).join("");
+  } catch (e) { grid.innerHTML = `<div style="color:var(--red); font-size:12px;">Couldn't load.</div>`; }
+}
+loadBreakers();
+
+async function tripBreaker() {
+  const issuer = document.getElementById("tripIssuer").value;
+  await fetch(`${API_BASE}/trip_breaker?issuer=${issuer}`, { method: "POST" });
+  await loadBreakers();
+
+  const res = await fetch(`${API_BASE}/process_loop`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ txn_id: "breaker_test_" + Date.now(), decline_code: "bank_technical_error", issuer, amount: 1500, has_secondary_method: false }),
+  });
+  const data = await res.json();
+  const proof = document.getElementById("breakerProof");
+  proof.innerHTML = `<div style="margin-top:12px; font-size:12px; color:var(--text-dim);">
+    Live proof — a new ${issuer} transaction right now: <span class="badge ${actionBadgeClass(data.attempts[0].action)}">${data.attempts[0].action}</span>
+    <div style="margin-top:4px;">${data.attempts[0].reason}</div>
+  </div>`;
+}
+
+async function updateLiveIssuerStatus(issuer) {
+  const el = document.getElementById("liveIssuerStatus");
+  try {
+    const res = await fetch(`${API_BASE}/breakers`);
+    const d = await res.json();
+    const match = d.issuers.find(b => b.issuer === issuer);
+    el.textContent = match?.tripped ? `🔴 ${issuer} circuit broken` : `🟢 ${issuer} healthy`;
+    el.style.color = match?.tripped ? "var(--red)" : "var(--accent)";
+  } catch (e) { el.textContent = "unknown"; }
+}
+
+async function loadCurve() {
+  const canvas = document.getElementById("curveChart");
+  const ctx = canvas.getContext("2d");
+  try {
+    const res = await fetch(`${API_BASE}/curve`);
+    const d = await res.json();
+    const pts = d.points;
+    const maxVal = Math.max(...pts.map(p => Math.max(p.naive, p.copilot)));
+    const w = canvas.width, h = canvas.height, padL = 55, padB = 24, padT = 24, padR = 10;
+    const plotW = w - padL - padR, plotH = h - padT - padB;
+
+    const toXY = (i, val) => [padL + (i / (pts.length - 1)) * plotW, padT + plotH - (val / maxVal) * plotH];
+
+    ctx.clearRect(0, 0, w, h);
+
+    // gridlines + y-axis labels
+    ctx.strokeStyle = "#232B36"; ctx.fillStyle = "#8B96A5";
+    ctx.font = "10px IBM Plex Mono, monospace";
+    for (let i = 0; i <= 4; i++) {
+      const y = padT + plotH - (i / 4) * plotH;
+      ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(w - padR, y); ctx.stroke();
+      ctx.fillText("₹" + Math.round((maxVal * i) / 4 / 1000) + "k", 4, y + 3);
+    }
+    // x-axis labels
+    [0, pts.length - 1].forEach(i => {
+      const [x] = toXY(i, 0);
+      ctx.fillText(pts[i].n + " txns", x - 15, h - 6);
+    });
+
+    const drawLine = (key, color) => {
+      ctx.beginPath();
+      pts.forEach((p, i) => { const [x, y] = toXY(i, p[key]); i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y); });
+      ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.stroke();
+    };
+    drawLine("naive", "#8B96A5");
+    drawLine("copilot", "#2DD4A7");
+
+    ctx.fillStyle = "#8B96A5"; ctx.fillText("— naive retry", padL, 14);
+    ctx.fillStyle = "#2DD4A7"; ctx.fillText("— recovery copilot", padL + 80, 14);
+  } catch (e) { /* silent */ }
+}
 
 async function runTransaction(repeat) {
+  document.getElementById("nodeInput").closest(".panel").scrollIntoView({ behavior: "smooth", block: "center" });
+  await new Promise(r => setTimeout(r, 250));
+  animatePipeline();
   const btn = document.getElementById("runBtn");
   const tracePanel = document.getElementById("tracePanel");
   const steps = document.getElementById("traceSteps");
 
   btn.disabled = true;
-  tracePanel.classList.remove("active");
+  tracePanel.classList.add("active");
   steps.innerHTML = "";
 
   const txnId = repeat && lastTxnId ? lastTxnId : "demo_" + String(txnCounter++).padStart(3, "0");
@@ -326,6 +589,7 @@ async function runTransaction(repeat) {
     has_secondary_method: document.getElementById("hasSecondary").checked,
     amount: parseFloat(document.getElementById("amount").value) || 1500,
   };
+  updateLiveIssuerStatus(payload.issuer);
 
   try {
     const res = await fetch(`${API_BASE}/process_loop`, {
@@ -346,7 +610,20 @@ async function runTransaction(repeat) {
   btn.disabled = false;
 }
 
-function renderTrace(payload, data) {
+async function downloadTrace(e) {
+  e.preventDefault();
+  const res = await fetch(`${API_BASE}/trace?limit=200`);
+  const data = await res.json();
+  const blob = new Blob([JSON.stringify(data.trace, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "recovery_copilot_audit_trail.json";
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+async function renderTrace(payload, data) {
   const steps = document.getElementById("traceSteps");
   const tracePanel = document.getElementById("tracePanel");
 
@@ -364,8 +641,10 @@ function renderTrace(payload, data) {
       <div class="step-reason">decline code: ${payload.decline_code}</div>
     </div>`;
   steps.appendChild(classifierStep);
+  await new Promise(r => setTimeout(r, 220));
 
-  data.attempts.forEach((att, i) => {
+  for (let i = 0; i < data.attempts.length; i++) {
+    const att = data.attempts[i];
     const badgeClass = actionBadgeClass(att.action);
     const verifyBadge = att.recovered
       ? `<span class="badge retry">✓ recovered</span>`
@@ -373,33 +652,21 @@ function renderTrace(payload, data) {
 
     const el = document.createElement("div");
     el.className = "step";
-    el.style.animationDelay = `${i * 0.15}s`;
     el.innerHTML = `
       <div class="step-marker">${String(i + 1).padStart(2, "0")}</div>
       <div class="step-body">
         <div class="step-label">Attempt ${att.attempt} — ${att.action.startsWith("retry") ? "Same-method retry" : att.action.replace(/_/g, " ")}</div>
         <div class="step-value"><span class="badge ${badgeClass}">${att.action}</span> ${verifyBadge}</div>
-        <div class="step-reason">${att.reason}</div>
+        <div class="step-reason">${att.reason}${att.scheduled_for ? ` — scheduled for ${new Date(att.scheduled_for).toLocaleString()}` : ''}</div>
       </div>`;
     steps.appendChild(el);
-  });
+    await new Promise(r => setTimeout(r, 220));
+  }
 
-  const summary = document.createElement("div");
-  summary.className = "step";
-  summary.style.animationDelay = `${data.attempts.length * 0.15}s`;
-  summary.innerHTML = `
-    <div class="step-marker">✓</div>
-    <div class="step-body">
-      <div class="step-label">Outcome</div>
-      <div class="step-value">${data.recovered ? `Recovered ₹${data.recovered_amount.toFixed(2)} via ${data.final_action}` : "Not recovered this cycle"}</div>
-      <div class="step-reason">${data.recovered ? (data.final_action === "compliant_dunning" || data.final_action === "prompt_customer" ? "Customer acted on the notice and completed payment independently — not an automated recovery." : "Payment succeeded on this automated attempt.") : "All bounded attempts exhausted for this cycle."}</div>
-    </div>`;
-  steps.appendChild(summary);
-
-  if (data.notice.sendable) {
+    if (data.notice.sendable) {
     const noticeStep = document.createElement("div");
     noticeStep.className = "step";
-    noticeStep.style.animationDelay = `${(data.attempts.length + 1) * 0.15}s`;
+    noticeStep.style.animationDelay = `${(data.attempts.length) * 0.15}s`;
     noticeStep.innerHTML = `
       <div class="step-marker">✉</div>
       <div class="step-body">
@@ -407,33 +674,113 @@ function renderTrace(payload, data) {
         <div class="step-reason">${data.notice.message}</div>
       </div>`;
     steps.appendChild(noticeStep);
+    await new Promise(r => setTimeout(r, 220));
   }
 
-  tracePanel.classList.add("active");
+  const summary = document.createElement("div");
+  summary.className = "step";
+  summary.style.animationDelay = `${(data.attempts.length + 1) * 0.15}s`;
+  summary.innerHTML = `
+    <div class="step-marker">✓</div>
+    <div class="step-body">
+      <div class="step-label">Final Outcome</div>
+      <div class="step-value">${data.recovered ? `Recovered ₹${data.recovered_amount.toFixed(2)} via ${data.final_action}` : "Not recovered this cycle"}</div>
+      <div class="step-reason">${data.recovered ? (data.final_action === "compliant_dunning" || data.final_action === "prompt_customer" ? "Customer read the notice above and completed payment independently — not an automated recovery." : "Payment succeeded on this automated attempt.") : "All bounded attempts exhausted for this cycle."}</div>
+    </div>`;
+  steps.appendChild(summary);
+  await new Promise(r => setTimeout(r, 220));
+
+  if (data.notice.sendable) {
+    const mockup = document.createElement("div");
+    mockup.style.marginTop = "16px";
+    mockup.innerHTML = `
+      <div style="font-size:11px; color:var(--text-dim); text-transform:uppercase; margin-bottom:8px;">What the customer sees</div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+        <div style="background:#1a1a1a; border:1px solid var(--border); border-radius:8px; padding:12px; font-size:12px; color:#999; word-wrap:break-word; overflow-wrap:break-word;">
+          <div style="font-size:10px; margin-bottom:6px;">Generic default SMS</div>
+          "Your payment failed. Retry here: [link]"
+        </div>
+        <div style="background:rgba(45,212,167,0.08); border:1px solid var(--accent); border-radius:8px; padding:12px; font-size:12px; word-wrap:break-word; overflow-wrap:break-word;">
+          <div style="font-size:10px; color:var(--accent); margin-bottom:6px;">Recovery Copilot · ${data.notice.channel}</div>
+          ${data.notice.message}
+        </div>
+      </div>`;
+    document.getElementById("traceSteps").appendChild(mockup);
+  }
 }
-async function loadBatchSummary() {
+function renderMetrics(d) {
+  const grid = document.getElementById("metricsGrid");
+  grid.innerHTML = `
+    <div class="metric-tile"><div class="metric-label">Revenue at Risk</div><div class="metric-value">₹${Math.round(d.total_amount).toLocaleString("en-IN")}</div></div>
+    <div class="metric-tile" style="display:flex; align-items:center; gap:12px;">
+      <svg width="56" height="56" viewBox="0 0 56 56">
+        <circle cx="28" cy="28" r="24" fill="none" stroke="#232B36" stroke-width="6"/>
+        <circle cx="28" cy="28" r="24" fill="none" stroke="#8B96A5" stroke-width="6"
+          stroke-dasharray="${2 * Math.PI * 24}" stroke-dashoffset="${2 * Math.PI * 24 * (1 - d.naive_rate_pct / 100)}"
+          transform="rotate(-90 28 28)" opacity="0.5"/>
+        <circle cx="28" cy="28" r="18" fill="none" stroke="#2DD4A7" stroke-width="6"
+          stroke-dasharray="${2 * Math.PI * 18}" stroke-dashoffset="${2 * Math.PI * 18 * (1 - d.copilot_rate_pct / 100)}"
+          transform="rotate(-90 28 28)"/>
+      </svg>
+      <div>
+        <div class="metric-label">Recovery Rate</div>
+        <div class="metric-value" style="color:var(--accent); font-size:16px;">${d.copilot_rate_pct}%<span style="color:var(--text-dim); font-size:11px;"> vs ${d.naive_rate_pct}%</span></div>
+      </div>
+    </div>
+    <div class="metric-tile"><div class="metric-label">Revenue Recovered</div><div class="metric-value" style="color:var(--accent)">₹${Math.round(d.copilot_recovered).toLocaleString("en-IN")}</div></div>
+    <div class="metric-tile"><div class="metric-label">Avg Cost / Txn</div><div class="metric-value">₹${d.avg_cost_per_txn}</div></div>`;
+}
+
+function renderBatchSummary(d) {
   const el = document.getElementById("batchContent");
+  el.innerHTML = `
+    <div class="step"><div class="step-body"><div class="step-label">Total revenue at risk</div><div class="step-value">₹${Math.round(d.total_amount).toLocaleString("en-IN")}</div></div></div>
+    <div class="step"><div class="step-body"><div class="step-label">Naive retry recovered</div><div class="step-value" style="color: var(--text-dim)">₹${Math.round(d.naive_recovered).toLocaleString("en-IN")}</div></div></div>
+    <div class="step"><div class="step-body"><div class="step-label">Recovery Copilot recovered</div><div class="step-value" style="color: var(--accent)">₹${Math.round(d.copilot_recovered).toLocaleString("en-IN")}</div></div></div>`;
+  drawBatchChart(d.naive_recovered, d.copilot_recovered, d.total_amount);
+}
+
+async function loadAllBatchData() {
   try {
     const res = await fetch(`${API_BASE}/batch`);
     const d = await res.json();
-    el.innerHTML = `
-      <div class="step"><div class="step-body">
-        <div class="step-label">Total revenue at risk</div>
-        <div class="step-value">₹${d.total_amount.toLocaleString("en-IN")}</div>
-      </div></div>
-      <div class="step"><div class="step-body">
-        <div class="step-label">Naive retry recovered</div>
-        <div class="step-value" style="color: var(--text-dim)">₹${d.naive_recovered.toLocaleString("en-IN")}</div>
-      </div></div>
-      <div class="step"><div class="step-body">
-        <div class="step-label">Recovery Copilot recovered</div>
-        <div class="step-value" style="color: var(--accent)">₹${d.copilot_recovered.toLocaleString("en-IN")}</div>
-      </div></div>`;
+    renderMetrics(d);
+    renderBatchSummary(d);
   } catch (e) {
-    el.textContent = "Couldn't load batch summary — check the API is running.";
+    document.getElementById("metricsGrid").innerHTML = `<div style="color:var(--red); font-size:13px;">Couldn't load.</div>`;
+    document.getElementById("batchContent").innerHTML = `<div style="color:var(--red); font-size:13px;">Couldn't load batch summary — check the API is running.</div>`;
   }
 }
-loadBatchSummary();
+loadAllBatchData().then(() => loadCurve());
+loadBreakers();
+
+function drawBatchChart(naive, copilot, total) {
+  const canvas = document.getElementById("batchChart");
+  const ctx = canvas.getContext("2d");
+  const w = canvas.width, h = canvas.height;
+  ctx.clearRect(0, 0, w, h);
+
+  const bars = [
+    { label: "Naive retry", value: naive, color: "#8B96A5" },
+    { label: "Recovery Copilot", value: copilot, color: "#2DD4A7" },
+  ];
+  const maxVal = total;
+  const barHeight = 28, gap = 34, startY = 20;
+
+  ctx.font = "12px IBM Plex Mono, monospace";
+  bars.forEach((bar, i) => {
+    const y = startY + i * gap;
+    const barW = (bar.value / maxVal) * (w - 140);
+    ctx.fillStyle = "#232B36";
+    ctx.fillRect(120, y, w - 140, barHeight);
+    ctx.fillStyle = bar.color;
+    ctx.fillRect(120, y, barW, barHeight);
+    ctx.fillStyle = "#8B96A5";
+    ctx.fillText(bar.label, 0, y + 18);
+    ctx.fillStyle = "#E8ECF1";
+    ctx.fillText("₹" + bar.value.toLocaleString("en-IN"), 128, y + 18);
+  });
+}
 </script>
 </body>
 </html>

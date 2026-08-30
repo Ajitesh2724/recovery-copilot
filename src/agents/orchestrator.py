@@ -133,7 +133,7 @@ def _log_attempt(txn_id, attempt, action, recovered, amount):
         conn.close()
 
 
-def run_recovery_loop(txn, max_attempts=MAX_ATTEMPTS, use_llm=False):
+def run_recovery_loop(txn, max_attempts=MAX_ATTEMPTS, use_llm=False, persist=True):
     """
     Detect (decline_code already known) -> Diagnose (classify, inside decide()) ->
     Decide -> Execute -> Verify -> loop or Stop. Bounded: never exceeds max_attempts,
@@ -152,11 +152,15 @@ def run_recovery_loop(txn, max_attempts=MAX_ATTEMPTS, use_llm=False):
     for attempt in range(1, max_attempts + 1):
         action = decision["action"]
         key = f"{txn['txn_id']}_attempt{attempt}"
-        executed, _ = attempt_once(key, action, lambda: action)
+        if persist:
+            executed, _ = attempt_once(key, action, lambda: action)
+        else:
+            executed = True  # batch/curve simulations don't need durable dedupe
         outcome = outcomes.simulate_outcome(txn.get("decline_code", ""), action) if executed else False
 
         history.append({"attempt": attempt, "action": action, "reason": decision["reason"], "recovered": outcome})
-        _log_attempt(txn["txn_id"], attempt, action, outcome, amount)
+        if persist:
+            _log_attempt(txn["txn_id"], attempt, action, outcome, amount)
 
         if outcome:
             recovered = True
