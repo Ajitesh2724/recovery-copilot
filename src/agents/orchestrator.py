@@ -115,18 +115,18 @@ def _connect_recovery():
     conn.execute("""
         CREATE TABLE IF NOT EXISTS recovery_log (
             txn_id TEXT, attempt INTEGER, action TEXT,
-            recovered INTEGER, amount REAL, created_at REAL
+            recovered INTEGER, amount REAL, created_at REAL, customer_id TEXT
         )
     """)
     return conn
 
 
-def _log_attempt(txn_id, attempt, action, recovered, amount):
+def _log_attempt(txn_id, attempt, action, recovered, amount, customer_id=None):
     conn = _connect_recovery()
     try:
         conn.execute(
-            "INSERT INTO recovery_log (txn_id, attempt, action, recovered, amount, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-            (txn_id, attempt, action, int(recovered), amount, time.time()),
+            "INSERT INTO recovery_log (txn_id, attempt, action, recovered, amount, created_at, customer_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (txn_id, attempt, action, int(recovered), amount, time.time(), customer_id),
         )
         conn.commit()
     finally:
@@ -160,7 +160,7 @@ def run_recovery_loop(txn, max_attempts=MAX_ATTEMPTS, use_llm=False, persist=Tru
 
         history.append({"attempt": attempt, "action": action, "reason": decision["reason"], "recovered": outcome})
         if persist:
-            _log_attempt(txn["txn_id"], attempt, action, outcome, amount)
+            _log_attempt(txn["txn_id"], attempt, action, outcome, amount, customer_id=txn.get("customer_id"))
 
         if outcome:
             recovered = True
@@ -171,11 +171,18 @@ def run_recovery_loop(txn, max_attempts=MAX_ATTEMPTS, use_llm=False, persist=Tru
             break
         decision = {"action": nxt_action, "reason": f"attempt {attempt} ({action}) did not recover, escalating"}
 
-    notice = build_notice(decision, txn.get("scheduled_charge_time"), use_llm=use_llm)
+    stop_reason = None
+    if not recovered:
+        if len(history) >= max_attempts:
+            stop_reason = "TERMINAL_HALT: Hard Stop Triggered (Max Retries Reached)"
+        else:
+            stop_reason = "TERMINAL_STOP: No Further Recovery Path Available"
+
+    notice = build_notice(decision, txn.get("scheduled_charge_time"), use_llm=use_llm, customer_id=txn.get("customer_id"))
 
     return {
         "txn_id": txn["txn_id"], "attempts": history, "recovered": recovered,
         "amount": amount, "recovered_amount": amount if recovered else 0.0,
         "final_action": history[-1]["action"], "notice": notice,
-        "classifier_source": classifier_source,
+        "classifier_source": classifier_source, "stop_reason": stop_reason,
     }

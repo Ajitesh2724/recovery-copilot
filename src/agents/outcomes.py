@@ -6,6 +6,7 @@ import random
 FRESH_ATTEMPT_PROBABILITY = {
     "cascade_secondary": 0.75,
     "send_upi_intent": 0.65,
+    "reserve_pay_draw": 0.90,  # pre-authorized balance, close to guaranteed
 }
 
 # same-method retry probabilities, per decline code

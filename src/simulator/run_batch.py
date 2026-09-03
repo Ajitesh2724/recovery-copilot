@@ -40,7 +40,7 @@ def run(csv_path="data/simulated_transactions.csv", seed=None):
         result = orchestrator.run_recovery_loop({
             "txn_id": row["txn_id"], "decline_code": row["decline_code"],
             "issuer": row.get("issuer", "unknown"), "event_time": float(row["event_time"]),
-            "amount": amount, "has_secondary_method": rng.random() < 0.4,
+            "amount": amount, "customer_id": row.get("customer_id"), "has_secondary_method": rng.random() < 0.4,
         }, use_llm=False, persist=False)
         copilot_recovered += result["recovered_amount"]
 

@@ -23,7 +23,13 @@ MESSAGE_TEMPLATES = {
 }
 
 
-def build_notice(decision, scheduled_charge_time=None, use_llm=False):
+def build_notice(decision, scheduled_charge_time=None, use_llm=False, customer_id=None):
+    if customer_id:
+        from agents.contact_governor import can_contact
+        allowed, count = can_contact(customer_id)
+        if not allowed:
+            return {"sendable": False, "reason": f"contact cap reached ({count} touches this week) — governance hold, not a system failure"}
+
     action = decision["action"]
 
     if scheduled_charge_time:

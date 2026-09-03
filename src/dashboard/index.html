@@ -256,6 +256,7 @@
 
     <!-- ===== TAB: LIVE DECISION ===== -->
     <div class="tabpanel active" data-tab="live">
+
       <div class="panel" style="overflow-x:auto; padding-bottom:16px;">
         <div class="panel-title">Architecture</div>
         <svg viewBox="0 0 900 105" style="width:100%; min-width:700px;">
@@ -279,8 +280,17 @@
           <rect class="node" x="180" y="105" width="290" height="28" rx="6" stroke-dasharray="3,3"/><text class="sub" x="192" y="123">🔒 Idempotency Lock guards every attempt</text>
         </svg>
       </div>
+
       <div class="layout">
         <div>
+          <div class="panel">
+            <div class="panel-title">Predictive Risk Check</div>
+            <label for="predictCustomerId">Customer ID to check (e.g. from data/simulated_transactions.csv)</label>
+            <input type="text" id="predictCustomerId" placeholder="cust_00042" />
+            <button onclick="checkRisk()" style="margin-top:14px;">Check risk</button>
+            <div id="riskResult" style="margin-top:14px; font-size:13px; color:var(--text-dim);"></div>
+          </div>
+
           <div class="panel">
             <div class="panel-title">Transaction Input</div>
 
@@ -314,6 +324,10 @@
               <input type="checkbox" id="hasSecondary" checked />
               <label for="hasSecondary">Customer has a linked secondary payment method</label>
             </div>
+            <div class="checkbox-row">
+              <input type="checkbox" id="hasReservePay" />
+              <label for="hasReservePay">Customer has an active UPI Reserve Pay limit</label>
+            </div>
 
             <button id="runBtn" onclick="runTransaction(false)">Run through pipeline</button>
             <button id="repeatBtn" onclick="runTransaction(true)" style="background: transparent; border: 1px solid var(--border); color: var(--text-dim); margin-top: 10px;">
@@ -323,10 +337,10 @@
         </div>
 
         <div>
-        <div style="display:flex; gap:8px; margin-bottom:12px; font-size:11px; color:var(--text-dim);">
-          <span>Issuer status:</span>
-          <span id="liveIssuerStatus" style="color:var(--accent);">checking…</span>
-        </div>
+          <div style="display:flex; gap:8px; margin-bottom:12px; font-size:11px; color:var(--text-dim);">
+            <span>Issuer status:</span>
+            <span id="liveIssuerStatus" style="color:var(--accent);">checking…</span>
+          </div>
           <div class="panel trace" id="tracePanel">
             <div class="panel-title">Decision Trace</div>
             <div id="traceSteps"></div>
@@ -337,8 +351,6 @@
 
     <!-- ===== TAB: SYSTEM HEALTH ===== -->
     <div class="tabpanel" data-tab="health">
-
-
       <div class="panel">
         <div class="panel-title">Bank Infrastructure Status</div>
         <div id="breakerGrid" style="display:grid; grid-template-columns:repeat(auto-fill,minmax(90px,1fr)); gap:10px; margin-bottom:14px;">
@@ -351,7 +363,6 @@
         <button onclick="tripBreaker()" style="margin-top:10px; background: transparent; border:1px solid var(--red); color: var(--red);">Simulate outage (trip breaker)</button>
         <div id="breakerProof"></div>
       </div>
-
     </div>
 
     <!-- ===== TAB: RESULTS ===== -->
@@ -386,10 +397,8 @@
             <div class="panel-title">Cumulative Recovery — Naive vs. Copilot</div>
             <canvas id="curveChart" width="900" height="180" style="width:100%; height:180px;"></canvas>
           </div>
-
         </div>
       </div>
-
 
     </div>
 
@@ -413,18 +422,20 @@ let txnCounter = 1;
 let lastTxnId = null;
 
 function actionBadgeClass(action) {
-  if (action.startsWith("retry") || action === "cascade_secondary" || action === "send_upi_intent") return "retry";
+  if (action.startsWith("retry") || action === "cascade_secondary" || action === "send_upi_intent" || action === "reserve_pay_draw") return "retry";
   if (action === "hold_circuit_open") return "hold";
   return "stop";
 }
+
 async function animatePipeline() {
   const order = ["nodeInput", "nodeClassifier", "nodeStrategy", "nodeDunning", "nodeVerify"];
   order.forEach(id => document.getElementById(id).classList.remove("active"));
   for (const id of order) {
     document.getElementById(id).classList.add("active");
-    await new Promise(r => setTimeout(r, 200));
+    await new Promise(r => setTimeout(r, 110));
   }
 }
+
 function switchTab(tab) {
   document.querySelectorAll(".navlink").forEach(el => el.classList.toggle("active", el.dataset.tab === tab));
   document.querySelectorAll(".tabpanel").forEach(el => el.classList.toggle("active", el.dataset.tab === tab));
@@ -471,9 +482,34 @@ async function runSample() {
     container.innerHTML = `<div style="color: var(--red); font-size: 13px;">Couldn't reach the API.</div>`;
   }
 }
+
 function toggleSampleRow(idx) {
   const el = document.getElementById(`sampleRow${idx}`);
   el.style.display = el.style.display === "none" ? "block" : "none";
+}
+
+async function simulatePromiseToPay(txnId, declineCode, amount) {
+  const nextMonth = new Date();
+  nextMonth.setMonth(nextMonth.getMonth() + 1, 1);
+  const res = await fetch(`${API_BASE}/process_loop`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ txn_id: txnId + "_ptp", decline_code: declineCode, amount, promise_to_pay_date: nextMonth.toISOString() }),
+  });
+  const data = await res.json();
+  alert(`Customer committed to pay by ${nextMonth.toDateString()}.\nSystem response: ${data.attempts[0].action} — ${data.attempts[0].reason}`);
+}
+
+async function checkRisk() {
+  const id = document.getElementById("predictCustomerId").value.trim();
+  const el = document.getElementById("riskResult");
+  if (!id) { el.textContent = "Enter a customer ID first."; return; }
+  try {
+    const res = await fetch(`${API_BASE}/predict?customer_id=${encodeURIComponent(id)}`);
+    const d = await res.json();
+    const color = d.risk_score >= 0.5 ? "var(--red)" : "var(--accent)";
+    el.innerHTML = `Risk score: <span style="color:${color}; font-family:var(--mono);">${d.risk_score}</span> (${d.sample_size} past records)<br>${d.recommendation}`;
+  } catch (e) { el.textContent = "Couldn't reach the API."; }
 }
 
 async function loadBreakers() {
@@ -535,7 +571,6 @@ async function loadCurve() {
 
     ctx.clearRect(0, 0, w, h);
 
-    // gridlines + y-axis labels
     ctx.strokeStyle = "#232B36"; ctx.fillStyle = "#8B96A5";
     ctx.font = "10px IBM Plex Mono, monospace";
     for (let i = 0; i <= 4; i++) {
@@ -543,7 +578,6 @@ async function loadCurve() {
       ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(w - padR, y); ctx.stroke();
       ctx.fillText("₹" + Math.round((maxVal * i) / 4 / 1000) + "k", 4, y + 3);
     }
-    // x-axis labels
     [0, pts.length - 1].forEach(i => {
       const [x] = toXY(i, 0);
       ctx.fillText(pts[i].n + " txns", x - 15, h - 6);
@@ -564,15 +598,17 @@ async function loadCurve() {
 
 async function runTransaction(repeat) {
   document.getElementById("nodeInput").closest(".panel").scrollIntoView({ behavior: "smooth", block: "center" });
-  await new Promise(r => setTimeout(r, 250));
+  await new Promise(r => setTimeout(r, 120));
   animatePipeline();
+
   const btn = document.getElementById("runBtn");
   const tracePanel = document.getElementById("tracePanel");
   const steps = document.getElementById("traceSteps");
 
   btn.disabled = true;
+  btn.textContent = "Running pipeline…";
   tracePanel.classList.add("active");
-  steps.innerHTML = "";
+  steps.innerHTML = `<div style="font-size:13px; color:var(--text-dim); padding:16px 0;">Classifying decline code, then generating a personalized customer message via live LLM call — this can take a couple seconds…</div>`;
 
   const txnId = repeat && lastTxnId ? lastTxnId : "demo_" + String(txnCounter++).padStart(3, "0");
   lastTxnId = txnId;
@@ -584,9 +620,11 @@ async function runTransaction(repeat) {
 
   const payload = {
     txn_id: txnId,
+    customer_id: "cust_demo_" + txnId,
     decline_code: declineCode,
     issuer: document.getElementById("issuer").value,
     has_secondary_method: document.getElementById("hasSecondary").checked,
+    has_reserve_pay: document.getElementById("hasReservePay").checked,
     amount: parseFloat(document.getElementById("amount").value) || 1500,
   };
   updateLiveIssuerStatus(payload.issuer);
@@ -598,7 +636,7 @@ async function runTransaction(repeat) {
       body: JSON.stringify(payload),
     });
     const data = await res.json();
-    renderTrace(payload, data);
+    await renderTrace(payload, data);
   } catch (err) {
     steps.innerHTML = `<div class="step"><div class="step-body">
       <div class="step-label" style="color: var(--red)">Couldn't reach the API</div>
@@ -608,6 +646,7 @@ async function runTransaction(repeat) {
   }
 
   btn.disabled = false;
+  btn.textContent = "Run through pipeline";
 }
 
 async function downloadTrace(e) {
@@ -625,9 +664,9 @@ async function downloadTrace(e) {
 
 async function renderTrace(payload, data) {
   const steps = document.getElementById("traceSteps");
-  const tracePanel = document.getElementById("tracePanel");
 
   steps.innerHTML = "";
+
   const classifierStep = document.createElement("div");
   classifierStep.className = "step";
   classifierStep.innerHTML = `
@@ -635,13 +674,14 @@ async function renderTrace(payload, data) {
     <div class="step-body">
       <div class="step-label">Classifier Agent</div>
       <div class="step-value">${
-  data.classifier_source === "llm" ? "LLM classification": data.classifier_source === "fallback_no_llm" ? "LLM unavailable — safe fallback used"
-  : "Rule-based match"
-}</div>
+        data.classifier_source === "llm" ? "LLM classification"
+        : data.classifier_source === "fallback_no_llm" ? "LLM unavailable — safe fallback used"
+        : "Rule-based match"
+      }</div>
       <div class="step-reason">decline code: ${payload.decline_code}</div>
     </div>`;
   steps.appendChild(classifierStep);
-  await new Promise(r => setTimeout(r, 220));
+  await new Promise(r => setTimeout(r, 120));
 
   for (let i = 0; i < data.attempts.length; i++) {
     const att = data.attempts[i];
@@ -663,10 +703,9 @@ async function renderTrace(payload, data) {
     await new Promise(r => setTimeout(r, 220));
   }
 
-    if (data.notice.sendable) {
+  if (data.notice.sendable) {
     const noticeStep = document.createElement("div");
     noticeStep.className = "step";
-    noticeStep.style.animationDelay = `${(data.attempts.length) * 0.15}s`;
     noticeStep.innerHTML = `
       <div class="step-marker">✉</div>
       <div class="step-body">
@@ -679,11 +718,10 @@ async function renderTrace(payload, data) {
 
   const summary = document.createElement("div");
   summary.className = "step";
-  summary.style.animationDelay = `${(data.attempts.length + 1) * 0.15}s`;
   summary.innerHTML = `
     <div class="step-marker">✓</div>
     <div class="step-body">
-      <div class="step-label">Final Outcome</div>
+      <div class="step-label">Final Outcome${data.stop_reason ? ` · <span style="color:var(--red)">${data.stop_reason}</span>` : ''}</div>
       <div class="step-value">${data.recovered ? `Recovered ₹${data.recovered_amount.toFixed(2)} via ${data.final_action}` : "Not recovered this cycle"}</div>
       <div class="step-reason">${data.recovered ? (data.final_action === "compliant_dunning" || data.final_action === "prompt_customer" ? "Customer read the notice above and completed payment independently — not an automated recovery." : "Payment succeeded on this automated attempt.") : "All bounded attempts exhausted for this cycle."}</div>
     </div>`;
@@ -703,11 +741,13 @@ async function renderTrace(payload, data) {
         <div style="background:rgba(45,212,167,0.08); border:1px solid var(--accent); border-radius:8px; padding:12px; font-size:12px; word-wrap:break-word; overflow-wrap:break-word;">
           <div style="font-size:10px; color:var(--accent); margin-bottom:6px;">Recovery Copilot · ${data.notice.channel}</div>
           ${data.notice.message}
+          ${(data.final_action === "compliant_dunning") ? `<button onclick="simulatePromiseToPay('${payload.txn_id}', '${payload.decline_code}', ${payload.amount})" style="margin-top:10px; width:auto; padding:6px 10px; font-size:11px;">Pay on 1st of month instead</button>` : ''}
         </div>
       </div>`;
-    document.getElementById("traceSteps").appendChild(mockup);
+    steps.appendChild(mockup);
   }
 }
+
 function renderMetrics(d) {
   const grid = document.getElementById("metricsGrid");
   grid.innerHTML = `
@@ -752,7 +792,6 @@ async function loadAllBatchData() {
   }
 }
 loadAllBatchData().then(() => loadCurve());
-loadBreakers();
 
 function drawBatchChart(naive, copilot, total) {
   const canvas = document.getElementById("batchChart");

@@ -13,6 +13,7 @@ from agents.circuit_breaker import status as breaker_status, record_technical_fa
 from simulator.run_batch import run as run_batch
 import csv, random as _random
 from simulator.run_batch import run_curve
+from agents.predictor import assess_customer_risk
 
 
 TRACKED_ISSUERS = ["hdfc", "icici", "sbi", "axis", "kotak"]
@@ -32,7 +33,14 @@ class TransactionRequest(BaseModel):
     issuer: str = "unknown"
     has_secondary_method: bool = False
     amount: float = 1500.0
+    has_reserve_pay: bool = False
+    promise_to_pay_date: str = None
+    customer_id: str = None
 
+
+@app.get("/predict")
+def predict(customer_id: str):
+    return assess_customer_risk(customer_id)
 
 @app.post("/process")
 def process_transaction(txn: TransactionRequest):

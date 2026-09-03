@@ -21,6 +21,7 @@ ESCALATION_PATH = {
     "retry_delayed": "cascade_secondary",
     "retry_next_day": "cascade_secondary",
     "retry_short_delay": "cascade_secondary",
+    "reserve_pay_draw": "compliant_dunning",
     "cascade_secondary": "compliant_dunning",
     "send_upi_intent": "compliant_dunning",
 }
@@ -46,6 +47,10 @@ def escalate(action, has_secondary_method):
     return nxt
 
 def decide(txn):
+    if txn.get("promise_to_pay_date"):
+        return {"action": "await_promise_to_pay",
+                "reason": f"customer committed to pay by {txn['promise_to_pay_date']}, retries paused",
+                "classifier_source": "n/a"}
     classification = classify(txn["decline_code"])
     code = classification["code"]
     category = classification["category"]
@@ -69,7 +74,9 @@ def decide(txn):
         else:
             result = {"action": "retry_short_delay", "reason": "transient bank/gateway issue"}
     elif category == "hard":
-        if classification["retryable"] and txn.get("has_secondary_method"):
+        if classification["retryable"] and txn.get("has_reserve_pay"):
+            result = {"action": "reserve_pay_draw", "reason": "primary method dead, drawing from pre-approved UPI Reserve Pay balance"}
+        elif classification["retryable"] and txn.get("has_secondary_method"):
             result = {"action": "cascade_secondary", "reason": "primary method dead, secondary available"}
         elif code in ("invalid_vpa", "vpa_resolution_failed"):
             result = {"action": "prompt_customer", "reason": "customer needs to fix upi id"}
