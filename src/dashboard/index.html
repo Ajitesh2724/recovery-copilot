@@ -2473,7 +2473,7 @@
     });
 
     /* ─── Constants & State ─── */
-    const API_BASE = "window.location.origin";
+    const API_BASE = window.location.origin;
     let txnCounter = 1;
     let lastTxnId = null;
     let _batchData = null;
