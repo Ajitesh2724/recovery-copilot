@@ -42,13 +42,15 @@ def generate(n=2000, seed=42):
         code = rng.choices(codes, weights=weights, k=1)[0]
         method = METHOD_FOR_CODE[code]
         issuer = rng.choice(CARD_ISSUERS) if method == "card" else rng.choice(UPI_ISSUERS)
+        amount = min(round(rng.lognormvariate(6.8, 0.6), 2), 4999)
+        amount = max(amount, 199)
         rows.append({
             "txn_id": f"txn_{i:05d}",
             "customer_id": f"cust_{rng.randint(1, n // 3):05d}",
             "decline_code": code,
             "method": method,
             "issuer": issuer,
-            "amount": round(rng.uniform(199, 4999), 2),
+            "amount": amount,
             "event_time": round(NOW - rng.uniform(0, SPREAD_SECONDS), 2),
         })
     return rows

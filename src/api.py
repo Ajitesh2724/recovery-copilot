@@ -5,6 +5,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from agents import orchestrator
 from agents import llm_client
@@ -38,9 +39,35 @@ class TransactionRequest(BaseModel):
     customer_id: str = None
 
 
+@app.get("/")
+def serve_dashboard():
+    dashboard_path = os.path.join(os.path.dirname(__file__), "dashboard", "index.html")
+    if os.path.exists(dashboard_path):
+        return FileResponse(dashboard_path)
+    return {"status": "ok", "message": "Recovery Copilot API is running"}
+
+_ACTIVE_SIMULATION = None
+
+
+
+
 @app.get("/predict")
 def predict(customer_id: str):
     return assess_customer_risk(customer_id)
+
+
+@app.get("/customers")
+def get_customers(limit: int = 60):
+    conn = orchestrator._connect_recovery()
+    try:
+        rows = conn.execute(
+            "SELECT DISTINCT customer_id FROM recovery_log WHERE customer_id IS NOT NULL ORDER BY created_at DESC LIMIT ?",
+            (limit,),
+        ).fetchall()
+    finally:
+        conn.close()
+    return {"customers": [r[0] for r in rows]}
+
 
 @app.post("/process")
 def process_transaction(txn: TransactionRequest):
@@ -52,13 +79,33 @@ def process_loop(txn: TransactionRequest):
     return run_recovery_loop(txn.dict(), use_llm=True)
 
 
+def get_or_create_simulation(refresh: bool = False):
+    global _ACTIVE_SIMULATION
+    if refresh:
+        _ACTIVE_SIMULATION = run_batch(generate_new=True)
+    return _ACTIVE_SIMULATION
+
+
 @app.get("/batch")
 def batch_summary():
-    return run_batch()
+    sim = get_or_create_simulation(refresh=False)
+    if sim is None:
+        return {"ready": False}
+    return {"ready": True, **sim}
+
+
+@app.post("/batch/simulate")
+def simulate_new_batch():
+    sim = get_or_create_simulation(refresh=True)
+    return {"ready": True, **sim}
+
 
 @app.get("/curve")
 def curve():
-    return run_curve()
+    sim = get_or_create_simulation(refresh=False)
+    if sim is None:
+        return {"points": []}
+    return sim.get("curve", {"points": []})
 
 @app.get("/sample")
 def sample_run(n: int = 8):
@@ -98,10 +145,11 @@ def llm_status():
 def get_trace(limit: int = 50):
     conn = orchestrator._connect_recovery()
     rows = conn.execute(
-        "SELECT * FROM recovery_log ORDER BY created_at DESC LIMIT ?", (limit,)
+        "SELECT txn_id, attempt, action, recovered, amount, created_at, customer_id FROM recovery_log ORDER BY created_at DESC LIMIT ?",
+        (limit,),
     ).fetchall()
     conn.close()
-    columns = ["txn_id", "attempt", "action", "recovered", "amount", "created_at"]
+    columns = ["txn_id", "attempt", "action", "recovered", "amount", "created_at", "customer_id"]
     return {"trace": [dict(zip(columns, row)) for row in rows]}
 
 @app.get("/health")
@@ -112,6 +160,13 @@ def health():
 def breakers():
     return {"issuers": [breaker_status(i) for i in TRACKED_ISSUERS]}
 
+@app.post("/reset_demo_data")
+def reset_demo_data():
+    conn = orchestrator._connect_recovery()
+    conn.execute("DELETE FROM recovery_log")
+    conn.commit()
+    conn.close()
+    return {"status": "cleared"}
 
 @app.post("/trip_breaker")
 def trip_breaker(issuer: str = "hdfc"):

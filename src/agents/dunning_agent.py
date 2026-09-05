@@ -53,9 +53,9 @@ def build_notice(decision, scheduled_charge_time=None, use_llm=False, customer_i
 def _personalize(base_template):
     prompt = (
         "Rewrite the message below in a warm, concise, professional tone, under 30 words. "
-        "Output rules: no markdown, no bullet points, no numbering, no explanations, "
-        "no mention of 'options' or your reasoning -- output ONLY the final rewritten "
-        f"sentence and nothing else.\n\nMessage: '{base_template}'"
+        "Respond with the rewritten message ONLY -- no markdown, no bullet points, no numbering, "
+        "no self-checks, no confirmation of these rules, no preamble, no explanation of what you did. "
+        f"Just the final sentence itself.\n\nMessage: '{base_template}'"
     )
     result = llm_client.call(prompt, max_tokens=800)
     if not result:
@@ -63,13 +63,17 @@ def _personalize(base_template):
 
     result = result.strip().strip('"')
 
-    red_flags = ["constraint", "under 30 words", "option", "**", "reasoning",
-                 "here is", "here's the", "rewritten message"]
+    red_flags = [
+        "constraint", "under 30 words", "option", "**", "reasoning",
+        "here is", "here's the", "rewritten message", "words? yes", "words)",
+        "markdown? yes", "markdown? no", "bullet points", "numbering?", "- no ", "yes."
+    ]
     looks_broken = (
         len(result) < 15
         or result.startswith(":")
-        or not result.rstrip().endswith((".", "!", "?"))  # catches mid-word truncation
+        or not result.rstrip().endswith((".", "!", "?"))
         or any(flag in result.lower() for flag in red_flags)
+        or result.count("?") >= 2  # a real customer message rarely asks itself multiple questions
     )
     if looks_broken:
         print("LLM dunning rewrite looked malformed or truncated, using template instead:", result)

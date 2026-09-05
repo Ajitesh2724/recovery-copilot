@@ -1,11 +1,14 @@
 import os
-from google import genai
+try:
+    from google import genai
+except ImportError:
+    genai = None
 from dotenv import load_dotenv
 
 load_dotenv()
 
 _key = os.getenv("GEMINI_API_KEY")
-_client = genai.Client(api_key=_key) if _key else None
+_client = genai.Client(api_key=_key) if (_key and genai) else None
 
 
 def available():
